@@ -1,0 +1,129 @@
+name: Build
+
+on:
+  push:
+    paths-ignore:
+      - LICENSE
+      - README.md
+
+  pull_request:
+    paths-ignore:
+      - LICENSE
+      - README.md
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os_short }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Compile on Linux & Windows.
+        os: 
+          - ubuntu-20.04
+          - windows-latest
+
+        include:
+          - os: ubuntu-20.04
+            os_short: linux
+          - os: windows-latest
+            os_short: win
+    steps:
+      # Setup Python for AMBuild.
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      # Install dependencies
+      - name: Install AMBuild
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install git+https://github.com/alliedmodders/ambuild
+
+      - name: Install dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y clang g++-multilib
+
+      - name: Select clang compiler
+        if: runner.os == 'Linux'
+        run: |
+          echo "CC=clang" >> $GITHUB_ENV
+          echo "CXX=clang++" >> $GITHUB_ENV
+          clang --version
+          clang++ --version
+
+      - name: Find Visual C++ compilers and make all environment variables global (W)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          :: See https://github.com/microsoft/vswhere/wiki/Find-VC
+          for /f "usebackq delims=*" %%i in (`vswhere -latest -property installationPath`) do (
+            call "%%i"\Common7\Tools\vsdevcmd.bat -arch=x64 -host_arch=x64
+          )
+
+          :: Loop over all environment variables and make them global.
+          for /f "delims== tokens=1,2" %%a in ('set') do (
+            echo>>"%GITHUB_ENV%" %%a=%%b
+          )
+
+      # Checkout repos
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: project
+
+      - name: Checkout hl2sdk-cs2
+        uses: actions/checkout@v4
+        with:
+          repository: alliedmodders/hl2sdk
+          ref: cs2
+          path: hl2sdk-cs2
+
+      - name: Checkout Metamod:Source
+        uses: actions/checkout@v4
+        with:
+          repository: alliedmodders/metamod-source
+          ref: master
+          path: metamod-source
+
+      # Build
+      - name: Build
+        shell: bash
+        run: |
+          cd project && mkdir build && cd build
+          python ../configure.py --enable-optimize --plugin-name=Skin --plugin-alias=Skin --sdks=cs2 --targets=x86_64
+          ambuild
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ runner.os }}
+          path: project/build/package
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Package
+        run: |
+          7z a -mx9 linux.zip ./Linux/*
+          7z a -mx9 windows.zip ./Windows/*
+      - name: Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: '*.zip'
+          tag: ${{ github.ref }}
+          file_glob: true
