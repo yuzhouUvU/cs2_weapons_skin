@@ -39,7 +39,7 @@ typedef struct SkinParm
 	int m_nFallbackPaintKit;
 	int m_nFallbackSeed;
 	float m_flFallbackWear;
-}SkinParm;;
+}SkinParm;
 
 #ifdef _WIN32
 typedef void*(FASTCALL* EntityRemove_t)(CGameEntitySystem*, void*, void*,uint64_t);
