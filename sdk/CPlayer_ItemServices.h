@@ -26,6 +26,7 @@ public:
 class CEconItemView
 {
 public:
+	SCHEMA_FIELD(int32_t, CEconItemView, m_iEntityQuality);
 	SCHEMA_FIELD(CAttributeList, CEconItemView, m_AttributeList);
 	SCHEMA_FIELD(int32_t, CEconItemView, m_iItemIDHigh);
 	SCHEMA_FIELD(int32_t, CEconItemView, m_iAccountID);
@@ -38,9 +39,36 @@ public:
 	SCHEMA_FIELD(CEconItemView, CAttributeContainer, m_Item);
 };
 
+class CModelState
+{
+public:
+	SCHEMA_FIELD(uint64_t, CModelState, m_MeshGroupMask);
+};
+
+class CSkeletonInstance
+{
+public:
+	SCHEMA_FIELD(CModelState, CSkeletonInstance, m_modelState);
+};
+
+class CGameSceneNode
+{
+public:
+	CSkeletonInstance* GetSkeletonInstance() {
+        return CALL_VIRTUAL(CSkeletonInstance*, 8, this);
+    }
+};
+
+class CBodyComponent
+{
+public:
+	SCHEMA_FIELD(CGameSceneNode*, CBodyComponent, m_pSceneNode);
+};
+
 class CBasePlayerWeapon : public CEconEntity
 {
 public:
+	SCHEMA_FIELD(CBodyComponent*, CBaseEntity, m_CBodyComponent);
 	SCHEMA_FIELD(CAttributeContainer, CEconEntity, m_AttributeManager);
 	SCHEMA_FIELD(int32_t, CEconEntity, m_nFallbackPaintKit);
 	SCHEMA_FIELD(int32_t, CEconEntity, m_nFallbackSeed);

@@ -20,7 +20,7 @@ inline CEntityInstance* UTIL_FindEntityByClassname(CEntityInstance* pStart, cons
 
 class SC_CBaseEntity : public CBaseEntity
 {
-public:
+public:	
 	SCHEMA_FIELD(int32_t, CBaseEntity, m_iHealth);
 	SCHEMA_FIELD(int32_t, CBaseEntity, m_iMaxHealth);
 	SCHEMA_FIELD(LifeState_t, CBaseEntity, m_lifeState);
