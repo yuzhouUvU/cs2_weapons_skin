@@ -185,7 +185,7 @@ void Skin::StartupServer(const GameSessionConfiguration_t& config, ISource2World
 	FnUTIL_ClientPrintAll = libserver.FindPatternSIMD("55 48 89 E5 41 57 49 89 D7 41 56 49 89 F6 41 55 41 89 FD").RCast< decltype(FnUTIL_ClientPrintAll) >();
 	FnGiveNamedItem = libserver.FindPatternSIMD("55 48 89 E5 41 57 41 56 49 89 CE 41 55 49 89 F5 41 54 49 89 D4 53 48 89").RCast<decltype(FnGiveNamedItem)>();
 	FnEntityRemove = libserver.FindPatternSIMD("48 85 F6 74 0B 48 8B 76 10 E9 B2 FE FF FF").RCast<decltype(FnEntityRemove)>();
-	FnSubClassChange = libserver.FindPatternSIMD("55 48 89 E5 41 57 41 56 41 55 41 54 53 48 81 EC C8").RCast<decltype(FnSubClassChange)>();
+	FnSubClassChange = libserver.FindPatternSIMD("55 48 89 E5 41 57 41 56 41 55 41 54 53 48 81 EC C8 00 00 00 83 BE 38 04 00 00 01 0F 8E 47 02").RCast<decltype(FnSubClassChange)>();
 	#endif
 	g_pGameRules = nullptr;
 
@@ -271,6 +271,7 @@ void CEntityListener::OnEntitySpawned(CEntityInstance* pEntity)
 			sprintf(buf,"i_subclass_change %d %d",knife_idx->second,index);
 			engine->ServerCommand(buf);
 		}
+		
 		META_CONPRINTF( "class: %s\n", static_cast<CEntityInstance*>(pBasePlayerWeapon)->m_pEntity->m_designerName.String());
 		META_CONPRINTF( "steamId: %lld itemId: %d\n", steamid, weaponId);
 	});
