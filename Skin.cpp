@@ -46,20 +46,24 @@ typedef void*(FASTCALL* SubClassChange_t)(const CCommandContext &context, const 
 typedef void*(FASTCALL* EntityRemove_t)(CGameEntitySystem*, void*, void*,uint64_t);
 typedef void(FASTCALL* GiveNamedItem_t)(void* itemService,const char* pchName, void* iSubType,void* pScriptItem, void* a5,void* a6);
 typedef void(FASTCALL* UTIL_ClientPrintAll_t)(int msg_dest, const char* msg_name, const char* param1, const char* param2, const char* param3, const char* param4);
+typedef void(FASTCALL* UTIL_ClientPrint_t)(CBasePlayerController *player, int msg_dest, const char *msg_name, const char *param1, const char *param2, const char *param3, const char *param4);
 
 extern SubClassChange_t FnSubClassChange;
 extern EntityRemove_t FnEntityRemove;
 extern GiveNamedItem_t FnGiveNamedItem;
 extern UTIL_ClientPrintAll_t FnUTIL_ClientPrintAll;
+extern UTIL_ClientPrint_t FnUTIL_ClientPrint;
 EntityRemove_t FnEntityRemove;
 GiveNamedItem_t FnGiveNamedItem;
 UTIL_ClientPrintAll_t FnUTIL_ClientPrintAll;
+UTIL_ClientPrint_t FnUTIL_ClientPrint;
 SubClassChange_t FnSubClassChange;
 #else
 void (*FnSubClassChange)(const CCommandContext &context, const CCommand &args) = nullptr;
 void (*FnEntityRemove)(CGameEntitySystem*, void*, void*,uint64_t) = nullptr;
 void (*FnGiveNamedItem)(void* itemService,const char* pchName, void* iSubType,void* pScriptItem, void* a5,void* a6) = nullptr;
 void (*FnUTIL_ClientPrintAll)(int msg_dest, const char* msg_name, const char* param1, const char* param2, const char* param3, const char* param4) = nullptr;
+void (*FnUTIL_ClientPrint)(CBasePlayerController *player, int msg_dest, const char *msg_name, const char *param1, const char *param2, const char *param3, const char *param4) = nullptr;
 #endif
 
 std::map<int, std::string> g_WeaponsMap;
@@ -176,12 +180,14 @@ void Skin::NextFrame(std::function<void()> fn)
 void Skin::StartupServer(const GameSessionConfiguration_t& config, ISource2WorldSession*, const char*)
 {
 	#ifdef _WIN32
+	FnUTIL_ClientPrint = (UTIL_ClientPrint_t)FindSignature("server.dll", "\x48\x85\xC9\x0F\x84\x3F\x3F\x3F\x3F\x48\x8B\xC4\x48\x89\x58\x18");
 	FnUTIL_ClientPrintAll = (UTIL_ClientPrintAll_t)FindSignature("server.dll", "\x48\x89\x5C\x24\x08\x48\x89\x6C\x24\x10\x48\x89\x74\x24\x18\x57\x48\x81\xEC\x70\x01\x3F\x3F\x8B\xE9");
 	FnGiveNamedItem = (GiveNamedItem_t)FindSignature("server.dll", "\x48\x89\x5C\x24\x18\x48\x89\x74\x24\x20\x55\x57\x41\x54\x41\x56\x41\x57\x48\x8D\x6C\x24\xD9");
 	FnEntityRemove = (EntityRemove_t)FindSignature("server.dll", "\x48\x85\xD2\x0F\x3F\x3F\x3F\x3F\x3F\x57\x48\x3F\x3F\x3F\x48\x89\x3F\x3F\x3F\x48\x8B\xF9\x48\x8B");
 	FnSubClassChange = (SubClassChange_t)FindSignature("server.dll", "\x40\x55\x41\x57\x48\x83\xEC\x78\x83\xBA\x38\x04");
 	#else
 	CModule libserver(g_pSource2Server);
+	FnUTIL_ClientPrint = libserver.FindPatternSIMD("55 48 89 E5 41 57 49 89 CF 41 56 49 89 D6 41 55 41 89 F5 41 54 4C 8D A5 A0 FE FF FF").RCast< decltype(FnUTIL_ClientPrintAll) >();
 	FnUTIL_ClientPrintAll = libserver.FindPatternSIMD("55 48 89 E5 41 57 49 89 D7 41 56 49 89 F6 41 55 41 89 FD").RCast< decltype(FnUTIL_ClientPrintAll) >();
 	FnGiveNamedItem = libserver.FindPatternSIMD("55 48 89 E5 41 57 41 56 49 89 CE 41 55 49 89 F5 41 54 49 89 D4 53 48 89").RCast<decltype(FnGiveNamedItem)>();
 	FnEntityRemove = libserver.FindPatternSIMD("48 85 F6 74 0B 48 8B 76 10 E9 B2 FE FF FF").RCast<decltype(FnEntityRemove)>();
@@ -277,7 +283,6 @@ void CEntityListener::OnEntitySpawned(CEntityInstance* pEntity)
 	});
 }
 
-// weapon: skin 38 0 0 knife: skin 38 0 0 515
 CON_COMMAND_F(skin, "修改皮肤", FCVAR_CLIENT_CAN_EXECUTE)
 {
 	if(context.GetPlayerSlot() == -1)return;
@@ -294,13 +299,19 @@ CON_COMMAND_F(skin, "修改皮肤", FCVAR_CLIENT_CAN_EXECUTE)
 	auto weapon_name = g_WeaponsMap.find(weaponId);
 	if(weapon_name == g_WeaponsMap.end())return;
 	
+	if(args.ArgC() == 1)
+	{
+		FnUTIL_ClientPrint(pPlayerController, 3, " \x04 [SKIN] \x01访问：http://skin.ymos.top/ 生成皮肤修改参数",nullptr, nullptr, nullptr, nullptr);
+		FnUTIL_ClientPrint(pPlayerController, 3, " \x04 [SKIN] \x01开源仓库：https://github.com/yuzhouUvU/cs2_weapons_skin",nullptr, nullptr, nullptr, nullptr);
+		return;
+	}
 	char buf[255] = {0};
 	if(weaponId == 59 || weaponId == 42)
 	{
 		if(args.ArgC() != 5)
 		{
-			sprintf(buf, " \x04 %s 你使用skin命令修改刀皮肤需要四个参数!",pPlayerController->m_iszPlayerName());
-			FnUTIL_ClientPrintAll(3, buf,nullptr, nullptr, nullptr, nullptr);
+			sprintf(buf, " \x04 [SKIN] \x01%s 你使用skin命令修改刀皮肤需要四个参数!",pPlayerController->m_iszPlayerName());
+			FnUTIL_ClientPrint(pPlayerController, 3, buf,nullptr, nullptr, nullptr, nullptr);
 			return;
 		}
 		g_PlayerKnifes[steamid] = atoi(args.Arg(4));
@@ -309,8 +320,8 @@ CON_COMMAND_F(skin, "修改皮肤", FCVAR_CLIENT_CAN_EXECUTE)
 	{
 		if(args.ArgC() != 4)
 		{
-			sprintf(buf, " \x04 %s 你使用skin命令修改武器皮肤需要三个参数!",pPlayerController->m_iszPlayerName());
-			FnUTIL_ClientPrintAll(3, buf,nullptr, nullptr, nullptr, nullptr);
+			sprintf(buf, " \x04 [SKIN] \x01%s 你使用skin命令修改武器皮肤需要三个参数!",pPlayerController->m_iszPlayerName());
+			FnUTIL_ClientPrint(pPlayerController, 3, buf,nullptr, nullptr, nullptr, nullptr);
 			return;
 		}
 	}
@@ -328,8 +339,8 @@ CON_COMMAND_F(skin, "修改皮肤", FCVAR_CLIENT_CAN_EXECUTE)
 	//pItemServices->GiveNamedItem(weapon_name->second.c_str());
 	// g_pGameRules->PlayerRespawn(static_cast<CCSPlayerPawn*>(pPlayerPawn));
 	META_CONPRINTF( "called by %lld\n", steamid);
-	sprintf(buf, " \x04 %s 已经成功修改皮肤 编号:%d 模板:%d 磨损:%f",pPlayerController->m_iszPlayerName(),g_PlayerSkins[steamid][weaponId].m_nFallbackPaintKit,g_PlayerSkins[steamid][weaponId].m_nFallbackSeed,g_PlayerSkins[steamid][weaponId].m_flFallbackWear);
-	FnUTIL_ClientPrintAll(3, buf,nullptr, nullptr, nullptr, nullptr);
+	sprintf(buf, " \x04 [SKIN] \x01已修改皮肤 编号:%d 模板:%d 磨损:%f",g_PlayerSkins[steamid][weaponId].m_nFallbackPaintKit,g_PlayerSkins[steamid][weaponId].m_nFallbackSeed,g_PlayerSkins[steamid][weaponId].m_flFallbackWear);
+	FnUTIL_ClientPrint(pPlayerController, 3, buf,nullptr, nullptr, nullptr, nullptr);
 }
 
 CON_COMMAND_F(i_subclass_change, "subclass change", FCVAR_NONE)
