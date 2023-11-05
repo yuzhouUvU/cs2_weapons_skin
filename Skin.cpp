@@ -264,8 +264,10 @@ void CRoundPreStartEvent::FireGameEvent(IGameEvent* event)
 
 void CEntityListener::OnEntitySpawned(CEntityInstance* pEntity)
 {
+	#ifdef _WIN32
 	try
 	{
+	#endif
 		CBasePlayerWeapon* pBasePlayerWeapon = dynamic_cast<CBasePlayerWeapon*>(pEntity);
 		if(!pBasePlayerWeapon)return;	
 
@@ -314,8 +316,10 @@ void CEntityListener::OnEntitySpawned(CEntityInstance* pEntity)
 			//META_CONPRINTF( "class: %s\n", static_cast<CEntityInstance*>(pBasePlayerWeapon)->m_pEntity->m_designerName.String());
 			META_CONPRINTF( "steamId: %lld itemId: %d\n", steamid, weaponId);
 		});
+	#ifdef _WIN32
 	}
 	catch(...){}
+	#endif
 }
 
 CON_COMMAND_F(skin, "修改皮肤", FCVAR_CLIENT_CAN_EXECUTE)
