@@ -14,5 +14,6 @@ public:
     DB();
     ~DB();
     void QueryData(uint64_t steamid);
-    void UpdateData(uint64_t steamid, int weaponid, int paintKit, int seed, float wear);
+    void UpdateWeapon(uint64_t steamid, int weaponid, int paintKit, int seed, float wear);
+    void UpdateKnife(uint64_t steamid, int knifeid);
 };

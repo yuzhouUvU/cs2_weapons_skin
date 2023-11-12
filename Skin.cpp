@@ -377,7 +377,9 @@ CON_COMMAND_F(skin, "修改皮肤", FCVAR_CLIENT_CAN_EXECUTE)
 			FnUTIL_ClientPrint(pPlayerController, 3, " \x04 [SKIN] \x01修改刀具控制台输入 'skin 编号 模板 磨损 刀具编号'",nullptr, nullptr, nullptr, nullptr);
 			return;
 		}
-		g_PlayerKnifes[steamid] = atoi(args.Arg(4));
+		int knifeid = atoi(args.Arg(4));
+		g_PlayerKnifes[steamid] = knifeid;
+		db->UpdateKnife(steamid, knifeid);
 	}
 	else
 	{
@@ -432,7 +434,7 @@ CON_COMMAND_F(skin, "修改皮肤", FCVAR_CLIENT_CAN_EXECUTE)
 	g_PlayerSkins[steamid][weaponId].m_nFallbackPaintKit = paintKit;
 	g_PlayerSkins[steamid][weaponId].m_nFallbackSeed = seed;
 	g_PlayerSkins[steamid][weaponId].m_flFallbackWear = wear;
-	db->UpdateData(steamid, weaponId, paintKit, seed, wear);
+	db->UpdateWeapon(steamid, weaponId, paintKit, seed, wear);
 	CBasePlayerWeapon* pPlayerWeapon = pWeaponServices->m_hActiveWeapon();
 
 	pWeaponServices->RemoveWeapon(pPlayerWeapon);
