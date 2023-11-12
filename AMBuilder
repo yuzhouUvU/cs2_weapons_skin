@@ -23,6 +23,8 @@ for sdk_name in MMSPlugin.sdks:
       'Skin.cpp',
       'utils/module.cpp',
       'utils/memaddr.cpp',
+      'utils/db.cpp',
+      'sqlite3/sqlite3.c',
       os.path.join('sdk', 'schemasystem.cpp')
     ]
 

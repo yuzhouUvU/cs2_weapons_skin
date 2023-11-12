@@ -19,6 +19,7 @@
 #include "utils/module.h"
 #endif
 #include <string>
+#include "utils/db.h"
 
 Skin g_Skin;
 PLUGIN_EXPOSE(Skin, g_Skin);
@@ -26,6 +27,7 @@ IVEngineServer2* engine = nullptr;
 IGameEventManager2* gameeventmanager = nullptr;
 IGameResourceServiceServer* g_pGameResourceService = nullptr;
 CGameEntitySystem* g_pGameEntitySystem = nullptr;
+IServerGameClients *g_gameClients = nullptr;
 CEntitySystem* g_pEntitySystem = nullptr;
 CSchemaSystem* g_pCSchemaSystem = nullptr;
 CCSGameRules* g_pGameRules = nullptr;
@@ -33,13 +35,8 @@ CPlayerSpawnEvent g_PlayerSpawnEvent;
 CRoundPreStartEvent g_RoundPreStartEvent;
 CEntityListener g_EntityListener;
 bool g_bPistolRound;
+DB *db;
 
-typedef struct SkinParm
-{
-	int m_nFallbackPaintKit;
-	int m_nFallbackSeed;
-	float m_flFallbackWear;
-}SkinParm;
 
 typedef struct Sticker
 {
@@ -80,6 +77,8 @@ std::map<uint64_t, std::map<int, Sticker>> g_Sticker;
 class GameSessionConfiguration_t { };
 SH_DECL_HOOK3_void(INetworkServerService, StartupServer, SH_NOATTRIB, 0, const GameSessionConfiguration_t&, ISource2WorldSession*, const char*);
 SH_DECL_HOOK3_void(IServerGameDLL, GameFrame, SH_NOATTRIB, 0, bool, bool, bool);
+SH_DECL_HOOK5_void(IServerGameClients, ClientDisconnect, SH_NOATTRIB, 0, CPlayerSlot, int, const char *, uint64, const char *);
+SH_DECL_HOOK6_void(IServerGameClients, OnClientConnected, SH_NOATTRIB, 0, CPlayerSlot, const char*, uint64, const char *, const char *, bool);
 
 #ifdef _WIN32
 inline void* FindSignature(const char* modname,const char* sig)
@@ -134,6 +133,7 @@ bool Skin::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, bool lat
 	GET_V_IFACE_CURRENT(GetEngineFactory, g_pNetworkServerService, INetworkServerService, NETWORKSERVERSERVICE_INTERFACE_VERSION);
 	GET_V_IFACE_CURRENT(GetEngineFactory, g_pGameResourceService, IGameResourceServiceServer, GAMERESOURCESERVICESERVER_INTERFACE_VERSION);
 	GET_V_IFACE_CURRENT(GetFileSystemFactory, g_pFullFileSystem, IFileSystem, FILESYSTEM_INTERFACE_VERSION);
+	GET_V_IFACE_CURRENT(GetServerFactory, g_gameClients, IServerGameClients, INTERFACEVERSION_SERVERGAMECLIENTS);
 
 	// Get CSchemaSystem
 	{
@@ -144,6 +144,8 @@ bool Skin::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, bool lat
 
 	SH_ADD_HOOK(INetworkServerService, StartupServer, g_pNetworkServerService, SH_MEMBER(this, &Skin::StartupServer), true);
 	SH_ADD_HOOK(IServerGameDLL, GameFrame, g_pSource2Server, SH_MEMBER(this, &Skin::GameFrame), true);
+	SH_ADD_HOOK(IServerGameClients, ClientDisconnect, g_gameClients, SH_MEMBER(this, &Skin::ClientDisconnect), true);
+	SH_ADD_HOOK(IServerGameClients, OnClientConnected, g_gameClients, SH_MEMBER(this, &Skin::OnClientConnected), false);
 
 	gameeventmanager = static_cast<IGameEventManager2*>(CallVFunc<IToolGameEventAPI*, 91>(g_pSource2Server));
 
@@ -168,6 +170,8 @@ bool Skin::Unload(char *error, size_t maxlen)
 {
 	SH_REMOVE_HOOK(IServerGameDLL, GameFrame, g_pSource2Server, SH_MEMBER(this, &Skin::GameFrame), true);
 	SH_REMOVE_HOOK(INetworkServerService, StartupServer, g_pNetworkServerService, SH_MEMBER(this, &Skin::StartupServer), true);
+	SH_REMOVE_HOOK(IServerGameClients, ClientDisconnect, g_gameClients, SH_MEMBER(this, &Skin::ClientDisconnect), true);
+	SH_REMOVE_HOOK(IServerGameClients, OnClientConnected, g_gameClients, SH_MEMBER(this, &Skin::OnClientConnected), false);
 
 	gameeventmanager->RemoveListener(&g_PlayerSpawnEvent);
 	gameeventmanager->RemoveListener(&g_RoundPreStartEvent);
@@ -176,6 +180,9 @@ bool Skin::Unload(char *error, size_t maxlen)
 
 	ConVar_Unregister();
 	
+	delete db;
+	db = nullptr;
+
 	return true;
 }
 
@@ -209,6 +216,8 @@ void Skin::StartupServer(const GameSessionConfiguration_t& config, ISource2World
 		g_pEntitySystem = g_pGameEntitySystem;
 
 		g_pGameEntitySystem->AddListenerEntity(&g_EntityListener);
+
+		db = new DB();
 
 		gameeventmanager->AddListener(&g_PlayerSpawnEvent, "player_spawn", true);
 		gameeventmanager->AddListener(&g_RoundPreStartEvent, "round_prestart", true);
@@ -260,6 +269,22 @@ void CRoundPreStartEvent::FireGameEvent(IGameEvent* event)
 	{
 		g_bPistolRound = g_pGameRules->m_totalRoundsPlayed() == 0 || (g_pGameRules->m_bSwitchingTeamsAtRoundReset() && g_pGameRules->m_nOvertimePlaying() == 0) || g_pGameRules->m_bGameRestart();
 	}
+}
+
+void Skin::OnClientConnected(CPlayerSlot slot, const char *pszName, uint64 xuid, const char *pszNetworkID, const char *pszAddress, bool bFakePlayer)
+{
+	META_CONPRINTF("\nSkin OnClientConnected(%d, \"%s\", %d, \"%s\", \"%s\", %d)\n", slot, pszName, xuid, pszNetworkID, pszAddress, bFakePlayer);
+	if (bFakePlayer == true)
+		return;
+	std::string raw = pszNetworkID;
+	int y = raw[3] - '0';
+	uint64_t steamid = 0x110000100000000 | (y << 1) | xuid;
+	db->QueryData(steamid);
+}
+
+void Skin::ClientDisconnect(CPlayerSlot slot, int reason, const char *pszName, uint64 xuid, const char *pszNetworkID)
+{
+	META_CONPRINTF("\nSkin ClientDisconnect(%d, %d, \"%s\", %d, \"%s\")\n", slot, reason, pszName, xuid, pszNetworkID);
 }
 
 void CEntityListener::OnEntitySpawned(CEntityInstance* pEntity)
@@ -401,9 +426,13 @@ CON_COMMAND_F(skin, "修改皮肤", FCVAR_CLIENT_CAN_EXECUTE)
 		FnUTIL_ClientPrint(pPlayerController, 3, buf,nullptr, nullptr, nullptr, nullptr);
 	}
 
-	g_PlayerSkins[steamid][weaponId].m_nFallbackPaintKit = atoi(args.Arg(1));
-	g_PlayerSkins[steamid][weaponId].m_nFallbackSeed = atoi(args.Arg(2));
-	g_PlayerSkins[steamid][weaponId].m_flFallbackWear = atof(args.Arg(3));
+	int paintKit = atoi(args.Arg(1));
+	int seed = atoi(args.Arg(2));
+	float wear = atof(args.Arg(3));
+	g_PlayerSkins[steamid][weaponId].m_nFallbackPaintKit = paintKit;
+	g_PlayerSkins[steamid][weaponId].m_nFallbackSeed = seed;
+	g_PlayerSkins[steamid][weaponId].m_flFallbackWear = wear;
+	db->UpdateData(steamid, weaponId, paintKit, seed, wear);
 	CBasePlayerWeapon* pPlayerWeapon = pWeaponServices->m_hActiveWeapon();
 
 	pWeaponServices->RemoveWeapon(pPlayerWeapon);
