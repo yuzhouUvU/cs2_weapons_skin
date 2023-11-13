@@ -1,5 +1,6 @@
 #include "db.h"
 #include <map>
+#include <inttypes.h>
 
 extern ISmmAPI *g_SMAPI;
 extern std::map<uint64_t, std::map<int, SkinParm>> g_PlayerSkins;
@@ -32,7 +33,7 @@ void DB::QueryData(uint64_t steamid)
     sqlite3_stmt *stmt;
 
     // Query weapon table
-    sprintf(buf, "SELECT weaponid,paintkit,seed,wear FROM weapon WHERE steamid=%lu;", steamid);
+    sprintf(buf, "SELECT weaponid,paintkit,seed,wear FROM weapon WHERE steamid=%" PRIu64 ";", steamid);
     std::map<int, SkinParm>& playerSkinMap = g_PlayerSkins[steamid];
     sqlite3_prepare(db, buf, sizeof(buf), &stmt, NULL);
     while (sqlite3_step(stmt) == SQLITE_ROW)
@@ -45,7 +46,7 @@ void DB::QueryData(uint64_t steamid)
     sqlite3_finalize(stmt);
 
     // Query knife table
-    sprintf(buf, "SELECT knifeid FROM knife WHERE steamid=%lu;", steamid);
+    sprintf(buf, "SELECT knifeid FROM knife WHERE steamid=%" PRIu64 ";", steamid);
     sqlite3_prepare(db, buf, sizeof(buf), &stmt, NULL);
     if (sqlite3_step(stmt) == SQLITE_ROW)
     {
@@ -57,14 +58,14 @@ void DB::QueryData(uint64_t steamid)
 
 void DB::UpdateWeapon(uint64_t steamid, int weaponid, int paintKit, int seed, float wear)
 {
-    sprintf(buf, "INSERT OR REPLACE INTO weapon(steamid, weaponid, paintkit, seed, wear) VALUES(%lu, %d, %d, %d, %f);", steamid, weaponid, paintKit, seed, wear);
+    sprintf(buf, "INSERT OR REPLACE INTO weapon(steamid, weaponid, paintkit, seed, wear) VALUES(%" PRIu64 ", %d, %d, %d, %f);", steamid, weaponid, paintKit, seed, wear);
     sqlite3_exec(db, buf, NULL, NULL, &sql3_errmsg);
     CheckErrMSG();
 }
 
 void DB::UpdateKnife(uint64_t steamid, int knifeid)
 {
-    sprintf(buf, "INSERT OR REPLACE INTO knife(steamid, knifeid) VALUES(%lu, %d);", steamid, knifeid);
+    sprintf(buf, "INSERT OR REPLACE INTO knife(steamid, knifeid) VALUES(%" PRIu64 ", %d);", steamid, knifeid);
     sqlite3_exec(db, buf, NULL, NULL, &sql3_errmsg);
     CheckErrMSG();
 }

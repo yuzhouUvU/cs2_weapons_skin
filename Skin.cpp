@@ -276,15 +276,21 @@ void Skin::OnClientConnected(CPlayerSlot slot, const char *pszName, uint64 xuid,
 	META_CONPRINTF("\nSkin OnClientConnected(%d, \"%s\", %d, \"%s\", \"%s\", %d)\n", slot, pszName, xuid, pszNetworkID, pszAddress, bFakePlayer);
 	if (bFakePlayer == true)
 		return;
-	std::string raw = pszNetworkID;
-	int y = raw[3] - '0';
-	uint64_t steamid = 0x110000100000000 | (y << 1) | xuid;
+	uint64_t steamid = 0x110000100000000 | xuid;
 	db->QueryData(steamid);
 }
 
 void Skin::ClientDisconnect(CPlayerSlot slot, int reason, const char *pszName, uint64 xuid, const char *pszNetworkID)
 {
 	META_CONPRINTF("\nSkin ClientDisconnect(%d, %d, \"%s\", %d, \"%s\")\n", slot, reason, pszName, xuid, pszNetworkID);
+	if (xuid == 0)
+		return;
+
+	uint64_t steamid = 0x110000100000000 | xuid;
+	if (g_PlayerSkins.find(steamid) != g_PlayerSkins.end())
+		g_PlayerSkins.erase(steamid);
+	if (g_PlayerKnifes.find(steamid) != g_PlayerKnifes.end())
+		g_PlayerKnifes.erase(steamid);
 }
 
 void CEntityListener::OnEntitySpawned(CEntityInstance* pEntity)
@@ -301,6 +307,19 @@ void CEntityListener::OnEntitySpawned(CEntityInstance* pEntity)
 			int64_t steamid = pBasePlayerWeapon->m_OriginalOwnerXuidLow();
 			if(!steamid)return;
 			int64_t weaponId = pBasePlayerWeapon->m_AttributeManager().m_Item().m_iItemDefinitionIndex();
+
+			if (weaponId == 59 || weaponId == 42)
+			{
+				auto knife_idx = g_PlayerKnifes.find(steamid);
+				if (knife_idx == g_PlayerKnifes.end())
+					return;
+				char buf[64] = {0};
+				int index = static_cast<CEntityInstance *>(pBasePlayerWeapon)->m_pEntity->m_EHandle.GetEntryIndex();
+				int knifeid = knife_idx->second;
+				sprintf(buf, "i_subclass_change %d %d", knifeid, index);
+				engine->ServerCommand(buf);
+				weaponId = knifeid;
+			}
 
 			auto weapon = g_PlayerSkins.find(steamid);
 			if(weapon == g_PlayerSkins.end())return;
@@ -319,17 +338,6 @@ void CEntityListener::OnEntitySpawned(CEntityInstance* pEntity)
 				auto sticker_parm = weapon_sticker->second.find(weaponId);
 				if(sticker_parm != weapon_sticker->second.end())
 					pBasePlayerWeapon->m_AttributeManager().m_Item().m_AttributeList().AddAttribute(sticker_parm->second.sticker_pos,sticker_parm->second.sticker_id); //sticker slot 0 id
-			}
-
-			if(weaponId == 59 || weaponId == 42)
-			{
-				auto knife_idx = g_PlayerKnifes.find(steamid);
-				if(knife_idx == g_PlayerKnifes.end())return;
-				
-				char buf[64] = {0};
-				int index = static_cast<CEntityInstance*>(pBasePlayerWeapon)->m_pEntity->m_EHandle.GetEntryIndex();
-				sprintf(buf,"i_subclass_change %d %d",knife_idx->second,index);
-				engine->ServerCommand(buf);
 			}
 			else
 			{
