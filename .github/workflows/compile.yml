@@ -92,6 +92,20 @@ jobs:
           ref: master
           path: metamod-source
 
+      # Download SQLite source code
+      - name: Download SQLite source code(L)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          wget -O sqlite.zip "https://www.sqlite.org/2023/sqlite-amalgamation-3440000.zip"
+          unzip sqlite.zip
+          mv sqlite-amalgamation-3440000 project/sqlite3
+      - name: Download SQLite source code(W)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          powershell -command "Invoke-WebRequest -Uri 'https://www.sqlite.org/2023/sqlite-amalgamation-3440000.zip' -OutFile 'sqlite.zip';Expand-Archive -Path 'sqlite.zip' -DestinationPath 'project';mv project/sqlite-amalgamation-3440000 project/sqlite3"
+
       # Build
       - name: Build
         shell: bash
@@ -99,6 +113,12 @@ jobs:
           cd project && mkdir build && cd build
           python ../configure.py --enable-optimize --plugin-name=Skin --plugin-alias=Skin --sdks=cs2 --targets=x86_64
           ambuild
+
+      - name: Strip(L)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          strip project/build/package/addons/Skin/Skin.so
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3

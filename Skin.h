@@ -26,12 +26,21 @@
 #include <deque>
 #include <functional>
 
+typedef struct SkinParm
+{
+	int m_nFallbackPaintKit;
+	int m_nFallbackSeed;
+	float m_flFallbackWear;
+}SkinParm;
+
 class Skin final : public ISmmPlugin, public IMetamodListener
 {
 public:
 	bool Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, bool late);
 	bool Unload(char* error, size_t maxlen);
 	void NextFrame(std::function<void()> fn);
+	void OnClientConnected( CPlayerSlot slot, const char *pszName, uint64 xuid, const char *pszNetworkID, const char *pszAddress, bool bFakePlayer );
+	void ClientDisconnect( CPlayerSlot slot, int reason, const char *pszName, uint64 xuid, const char *pszNetworkID );
 private:
 	const char* GetAuthor();
 	const char* GetName();
